@@ -18,15 +18,26 @@ else
    }
 
 
-## Inspect
 $ProgressPreference='SilentlyContinue'
+
+
+
+############ Settings
+$ProgressPreference='SilentlyContinue'
+$PSScriptRoot=Split-Path $script:MyInvocation.MyCommand.Path
+
+clear
+Write-Host "MDT Deployment Script." -ForegroundColor Yellow
+Write-Host ""
+$InstallDrive=Read-Host "Installation Drive"
+$Task=Read-Host "[I]nstall or [U]pdate"
+Write-Host ""
+Write-Host "" 
 Write-Host "Inspecting current configuration..."
 
-
-
-
 #######
-$PSScriptRoot=Split-Path $script:MyInvocation.MyCommand.Path
+$RemInst=$InstallDrive + ":\RemoteInstall"
+
 
 #### WDS ROLE
 write-Host ""
@@ -57,18 +68,24 @@ Write-Host "WDS Installation OK" -ForegroundColor Green
 
 Write-Host ""
 Write-Host ""
-if (Test-Path e:\RemoteInstall){
+if (Test-Path $RemInst){
 Write-Host "WDS already initialised." -ForegroundColor Green}
 else{
 Write-Host "Creating directories and initialising WDS server."
-wdsutil /initialize-server /reminst:e:\remoteinstall /authorize |Out-Null
+sleep 2
+wdsutil /initialize-server /reminst:$RemInst /authorize |Out-Null
 }
-if (Test-Path e:\RemoteInstall){
+if (Test-Path $RemInst){
 Write-Host "WDS Initialisation OK" -ForegroundColor Green}
 else{
 Write-Host "Initialisation failed.  Please configure WDS." -ForegroundColor Red
 exit
 }
+
+Write-Host "Setting WDS to respond to all client requests..."
+sleep 2
+WDSUTIL /Set-Server /AnswerClients:All >$null
+Write-Host "Complete" -ForegroundColor Green
 
 #### ADK
 $needinstall=$false
@@ -99,7 +116,7 @@ sleep 2
 if ($needinstall){
 Write-Host ""
 Write-Host "Attempting to install ADK features."
-Start-Process "$PSScriptRoot\content\adksetup.exe" "/features OptionId.DeploymentTools OptionId.WindowsPreinstallationEnvironment OptionId.UserStateMigrationTool /norestart /quiet /ceip off" -Wait
+Start-Process "$PSScriptRoot\content\MDT\adksetup.exe" "/features OptionId.DeploymentTools OptionId.WindowsPreinstallationEnvironment OptionId.UserStateMigrationTool /norestart /quiet /ceip off" -Wait
 }
 
 ###did install complete?
@@ -118,7 +135,7 @@ Write-Host "MDT installation detected."}
 else{
 Write-Host "Prerequisites OK" -ForegroundColor Green
 Write-Host "Attempting to install MDT"
-Start-Process "msiexec.exe" "/i $PSScriptRoot\content\MicrosoftDeploymentToolkit_x64.msi /quiet" -Wait
+Start-Process "msiexec.exe" "/i $PSScriptRoot\content\MDT\MicrosoftDeploymentToolkit_x64.msi /quiet" -Wait
 }
 ####check install
 if (Test-Path "C:\Program Files\Microsoft Deployment Toolkit\Bin\DeploymentWorkbench.msc"){
@@ -127,3 +144,119 @@ Write-Host "MDT Installed OK" -ForegroundColor Green
 else{
 Write-Host "MDT Installation failed. Please install manually." -ForegroundColor Red
 }
+
+
+#### Setting up MDT
+Write-Host ""
+Write-Host ""
+Write-Host "Creating Deployment share and adding to the Workbench."
+$Path=$InstallDrive + ":\DeploymentShare"
+$PSDriveName="DS001"
+$Description="MDT Deployment Share"
+$ShareName="DeploymentShare$"
+ 
+Import-Module "C:\Program Files\Microsoft Deployment Toolkit\bin\MicrosoftDeploymentToolkit.psd1"
+Remove-PSDrive $PSDriveName -ErrorAction SilentlyContinue
+New-PSDrive -Name $PSDriveName -PSProvider "MDTProvider" -Root $Path -Description $Description -NetworkPath \\$env:COMPUTERNAME\$ShareName | add-MDTPersistentDrive >$null
+
+ 
+If (!(Test-Path $Path)) {
+ New-Item -Path $Path -Type directory
+ Write-host ""
+ Write-host "New deployment directory created." -ForegroundColor Green
+ Net Share $ShareName=$Path "/Grant:Everyone,Full" "/Remark:$Description" |out-null
+ Write-host "Deplyment directory shared and permissions set." -ForegroundColor Green
+ sleep 3
+ }
+else{
+ Write-Host "Deployment Share already exists" -ForegroundColor Magenta
+}
+
+
+write-host ""
+write-host ""
+Write-Host ""
+
+Write-Host "MDT Install Complete." -ForegroundColor Green
+
+$Import=Read-Host "Import DeploymentShare (y/n)"
+if ($Import -eq "n"){
+exit
+}
+
+Write-Host ""
+$colItems = (Get-ChildItem $PSScriptRoot\Content\DeploymentShare -recurse | Measure-Object -property length -sum)
+Write-Host "Local DeploymentShare size: " ("{0:N2}" -f ($colItems.sum / 1MB) + " MB")
+Write-Host "This could take some time.  Please wait..."
+$source=$PSScriptRoot + "\Content\DeploymentShare"
+$destination=$InstallDrive + ":\DeploymentShare"
+Remove-Item -Recurse -Force "$destination\*"
+robocopy $source $destination /e /r:1 /w:1 /mt >$null
+Write-host ""
+Write-Host "Import complete."
+Write-Host
+Write-Host "Updating MDT configuration to match local environment."
+Write-Host ""
+sleep 4
+
+$unc="\\$env:computername\DeploymentShare$"
+$local=$InstallDrive + ":\DeploymentShare"
+$domain=$env:USERDNSDOMAIN
+
+Write-Host "Setting UNC Path to: $unc"
+sleep 2
+Write-Host "Setting local path to: $local"
+sleep 2
+Write-Host "Settting SLShare to: $unc\SLSLogs"
+sleep 2
+Write-Host "Setting DeployRoot to: $unc"
+sleep 2
+Write-Host "Setting local domain to: $domain"
+sleep 2
+
+(Get-Content $destination\control\settings.xml) | ForEach-Object { $_ -replace "WDS01", $env:computername } | Set-Content $destination\control\settings.xml
+(Get-Content $destination\control\settings.xml) | ForEach-Object { $_ -replace "c:", ($InstallDrive + ":") } | Set-Content $destination\control\settings.xml
+(Get-Content $destination\control\CustomSettings.ini) | ForEach-Object { $_ -replace "WDS01", $env:computername } | Set-Content $destination\control\CustomSettings.Ini
+(Get-Content $destination\control\BootStrap.ini) | ForEach-Object { $_ -replace "WDS01", $env:computername } | Set-Content $destination\control\BootStrap.Ini
+(Get-Content $destination\control\BootStrap.ini) | ForEach-Object { $_ -replace "Cuss.local", $domain } | Set-Content $destination\control\BootStrap.Ini
+
+$RSATInstalled = Get-WindowsFeature RSAT
+
+if ($RSATInstalled.InstallState -eq "Installed"){
+Write-Host "RSAT detected.  Attempting to create deployment user." -ForegroundColor Green
+New-ADUser WDS -ErrorAction SilentlyContinue
+sleep 2
+Set-ADAccountPassword WDS -NewPassword (ConvertTo-SecureString -AsPlainText "ABC123!!" -Force)
+Set-ADUser WDS -PasswordNeverExpires $TRUE -Enabled $TRUE
+}
+else{
+write-host "RSAT not available.  Please create user WDS with password ABC123!!" -ForegroundColor Magenta
+}
+sleep 3
+if (dsquery user -samid "WDS"){
+Write-Host "WDS User detected." -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host ""
+Write-Host "MDT Configuration complete." -ForegroundColor Green
+Write-Host ""
+Write-Host "Please check installation has succeded before proceeding"
+Write-Host "Regenerating boot images will take quite some time."
+Write-Host ""
+
+Read-Host "Ready to regenerate boot images. Press enter to continue"
+update-MDTDeploymentShare -path "DS001:" -Verbose
+sleep 5
+Write-Host "Boot images generated. Importing to WDS." -ForegroundColor Green
+wdsutil /Add-Image /ImageFile:$local\Boot\LiteTouchPE_x64.wim /ImageType:Boot >$null
+Write-host "Boot image imported to WDS"
+sleep 2
+Write-host ""
+Write-Host "Applying branding."
+sleep 2
+Copy-Item "$PSScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force -Confirm
+Write-Host ""
+Write-Host ""
+Write-host "Script Complete." -ForegroundColor Green
+Read-Host
