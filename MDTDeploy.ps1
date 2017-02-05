@@ -157,11 +157,10 @@ $ShareName="DeploymentShare$"
  
 Import-Module "C:\Program Files\Microsoft Deployment Toolkit\bin\MicrosoftDeploymentToolkit.psd1"
 Remove-PSDrive $PSDriveName -ErrorAction SilentlyContinue
-New-PSDrive -Name $PSDriveName -PSProvider "MDTProvider" -Root $Path -Description $Description -NetworkPath \\$env:COMPUTERNAME\$ShareName | add-MDTPersistentDrive >$null
-
  
 If (!(Test-Path $Path)) {
  New-Item -Path $Path -Type directory
+ New-PSDrive -Name $PSDriveName -PSProvider "MDTProvider" -Root $Path -Description $Description -NetworkPath \\$env:COMPUTERNAME\$ShareName | add-MDTPersistentDrive >$null
  Write-host ""
  Write-host "New deployment directory created." -ForegroundColor Green
  Net Share $ShareName=$Path "/Grant:Everyone,Full" "/Remark:$Description" |out-null
@@ -170,6 +169,8 @@ If (!(Test-Path $Path)) {
  }
 else{
  Write-Host "Deployment Share already exists" -ForegroundColor Magenta
+ Net Share $ShareName=$Path "/Grant:Everyone,Full" "/Remark:$Description" |out-null
+ New-PSDrive -Name $PSDriveName -PSProvider "MDTProvider" -Root $Path -Description $Description -NetworkPath \\$env:COMPUTERNAME\$ShareName
 }
 
 
