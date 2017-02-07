@@ -242,6 +242,18 @@ Write-Host ""
 Write-Host ""
 Write-Host "MDT Configuration complete." -ForegroundColor Green
 Write-Host ""
+Write-Host "Would you like to create a temporary DNS record?"
+$DNSRecord=Read-Host "This will allow you to use MDT before the boot images are prepared (y/n)"
+if ($DNSRecord="y"){
+Write-Host "Creating an A record for WDS01.  Please remove once boot images have been regenerated."
+$IPAddress=Get-NetIPAddress –AddressFamily IPv4 |where {$_.IPAddress -notlike "127*"}
+Add-DnsServerResourceRecordA -Name "WDS01" -ZoneName $domain -AllowUpdateAny -IPv4Address $IPAddress.IPAddress -TimeToLive 01:00:00
+sleep 2
+Write-Host "DNS record created. Importing boot image to WDS." -ForegroundColor Green
+wdsutil /Add-Image /ImageFile:$local\Boot\LiteTouchPE_x64.wim /ImageType:Boot >$null
+
+}
+
 Write-Host "Please check installation has succeded before proceeding"
 Write-Host "Regenerating boot images will take quite some time."
 Write-Host ""
@@ -250,13 +262,19 @@ Read-Host "Ready to regenerate boot images. Press enter to continue"
 update-MDTDeploymentShare -path "DS001:" -Verbose
 sleep 5
 Write-Host "Boot images generated. Importing to WDS." -ForegroundColor Green
+if ($DNSRecord="y"){
+Write-Host "Replacing boot image."
+wdsutil /replace-image /image:"Lite Touch Windows PE (x64)" /imagetype:boot /architecture:x64 /replacementimage /imagefile:$local\Boot\LiteTouchPE_x64.wim /ImageType:Boot >$null
+}
+else{
 wdsutil /Add-Image /ImageFile:$local\Boot\LiteTouchPE_x64.wim /ImageType:Boot >$null
 Write-host "Boot image imported to WDS"
+}
 sleep 2
 Write-host ""
 Write-Host "Applying branding."
 sleep 2
-Copy-Item "$PSScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force -Confirm
+Copy-Item "$PSScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force
 Write-Host ""
 Write-Host ""
 Write-host "Script Complete." -ForegroundColor Green
