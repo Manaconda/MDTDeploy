@@ -1,4 +1,6 @@
+#
 #### AUTO ELEVATE
+#
 $myWindowsID=[System.Security.Principal.WindowsIdentity]::GetCurrent()
 $myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
  $adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
@@ -26,7 +28,7 @@ $ProgressPreference='SilentlyContinue'
 $ProgressPreference='SilentlyContinue'
 $PSScriptRoot=Split-Path $script:MyInvocation.MyCommand.Path
 
-clear
+Clear-Host
 Write-Host "MDT Deployment Script." -ForegroundColor Yellow
 Write-Host ""
 $InstallDrive=Read-Host "Installation Drive"
@@ -72,7 +74,7 @@ if (Test-Path $RemInst){
 Write-Host "WDS already initialised." -ForegroundColor Green}
 else{
 Write-Host "Creating directories and initialising WDS server."
-sleep 2
+Start-Sleep 2
 wdsutil /initialize-server /reminst:$RemInst /authorize |Out-Null
 }
 if (Test-Path $RemInst){
@@ -83,7 +85,7 @@ exit
 }
 
 Write-Host "Setting WDS to respond to all client requests..."
-sleep 2
+Start-Sleep 2
 WDSUTIL /Set-Server /AnswerClients:All >$null
 Write-Host "Complete" -ForegroundColor Green
 
@@ -91,28 +93,28 @@ Write-Host "Complete" -ForegroundColor Green
 $needinstall=$false
 Write-Host ""
 Write-Host "Searching for Windows 10 ADK"
-sleep 2
+Start-Sleep 2
 if (Test-Path "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\User State Migration Tool"){
 Write-Host "User State Migration Tool found." -ForegroundColor Green}
 else{
 Write-Host "User State Migration Tool not found." -ForegroundColor Red
 $needinstall=$true
 }
-sleep 1
+Start-Sleep 1
 if (Test-Path "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation Environment"){
 Write-Host "Windows Preinstallation Environment found." -ForegroundColor Green}
 else{
 Write-Host "Windows Preinstallation Environment not found." -ForegroundColor Red
 $needinstall=$true
 }
-sleep 1
+Start-Sleep 1
 if (Test-Path "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools"){
 Write-Host "Deployment Tools found." -ForegroundColor Green}
 else{
 Write-Host "Deployment Tools not found." -ForegroundColor Red
 $needinstall=$true
 }
-sleep 2
+Start-Sleep 2
 if ($needinstall){
 Write-Host ""
 Write-Host "Attempting to install ADK features."
@@ -165,7 +167,7 @@ If (!(Test-Path $Path)) {
  Write-host "New deployment directory created." -ForegroundColor Green
  Net Share $ShareName=$Path "/Grant:Everyone,Full" "/Remark:$Description" |out-null
  Write-host "Deplyment directory shared and permissions set." -ForegroundColor Green
- sleep 3
+ Start-Sleep 3
  }
 else{
  Write-Host "Deployment Share already exists" -ForegroundColor Magenta
@@ -198,22 +200,22 @@ Write-Host "Import complete."
 Write-Host
 Write-Host "Updating MDT configuration to match local environment."
 Write-Host ""
-sleep 4
+Start-Sleep 4
 
 $unc="\\$env:computername\DeploymentShare$"
 $local=$InstallDrive + ":\DeploymentShare"
 $domain=$env:USERDNSDOMAIN
 
 Write-Host "Setting UNC Path to: $unc"
-sleep 2
+Start-Sleep 2
 Write-Host "Setting local path to: $local"
-sleep 2
+Start-Sleep 2
 Write-Host "Settting SLShare to: $unc\SLSLogs"
-sleep 2
+Start-Sleep 2
 Write-Host "Setting DeployRoot to: $unc"
-sleep 2
+Start-Sleep 2
 Write-Host "Setting local domain to: $domain"
-sleep 2
+Start-Sleep 2
 
 (Get-Content $destination\control\settings.xml) | ForEach-Object { $_ -replace "WDS01", $env:computername } | Set-Content $destination\control\settings.xml
 (Get-Content $destination\control\settings.xml) | ForEach-Object { $_ -replace "c:", ($InstallDrive + ":") } | Set-Content $destination\control\settings.xml
@@ -226,14 +228,14 @@ $RSATInstalled = Get-WindowsFeature RSAT
 if ($RSATInstalled.InstallState -eq "Installed"){
 Write-Host "RSAT detected.  Attempting to create deployment user." -ForegroundColor Green
 New-ADUser WDS -ErrorAction SilentlyContinue
-sleep 2
+Start-Sleep 2
 Set-ADAccountPassword WDS -NewPassword (ConvertTo-SecureString -AsPlainText "ABC123!!" -Force)
 Set-ADUser WDS -PasswordNeverExpires $TRUE -Enabled $TRUE
 }
 else{
 write-host "RSAT not available.  Please create user WDS with password ABC123!!" -ForegroundColor Magenta
 }
-sleep 3
+Start-Sleep 3
 if (dsquery user -samid "WDS"){
 Write-Host "WDS User detected." -ForegroundColor Green
 }
@@ -244,11 +246,11 @@ Write-Host "MDT Configuration complete." -ForegroundColor Green
 Write-Host ""
 Write-Host "Would you like to create a temporary DNS record?"
 $DNSRecord=Read-Host "This will allow you to use MDT before the boot images are prepared (y/n)"
-if ($DNSRecord="y"){
+if ($DNSRecord -eq "y"){
 Write-Host "Creating an A record for WDS01.  Please remove once boot images have been regenerated."
-$IPAddress=Get-NetIPAddress –AddressFamily IPv4 |where {$_.IPAddress -notlike "127*"}
+$IPAddress=Get-NetIPAddress ï¿½AddressFamily IPv4 |Where-Object {$_.IPAddress -notlike "127*"}
 Add-DnsServerResourceRecordA -Name "WDS01" -ZoneName $domain -AllowUpdateAny -IPv4Address $IPAddress.IPAddress -TimeToLive 01:00:00
-sleep 2
+Start-Sleep 2
 Write-Host "DNS record created. Importing boot image to WDS." -ForegroundColor Green
 wdsutil /Add-Image /ImageFile:$local\Boot\LiteTouchPE_x64.wim /ImageType:Boot >$null
 
@@ -260,7 +262,7 @@ Write-Host ""
 
 Read-Host "Ready to regenerate boot images. Press enter to continue"
 update-MDTDeploymentShare -path "DS001:" -Verbose
-sleep 5
+Start-Sleep 5
 Write-Host "Boot images generated. Importing to WDS." -ForegroundColor Green
 if ($DNSRecord="y"){
 Write-Host "Replacing boot image."
@@ -270,10 +272,10 @@ else{
 wdsutil /Add-Image /ImageFile:$local\Boot\LiteTouchPE_x64.wim /ImageType:Boot >$null
 Write-host "Boot image imported to WDS"
 }
-sleep 2
+Start-Sleep 2
 Write-host ""
 Write-Host "Applying branding."
-sleep 2
+Start-Start-Sleep 2
 Copy-Item "$PSScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force
 Write-Host ""
 Write-Host ""
