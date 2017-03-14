@@ -283,24 +283,24 @@ Read-Host
 ##### Update Function #####
 
 function FTPUpdate ($ScriptRoot,$FTPHost,$Destination) {
-$progressPreference = 'Continue'
+  Clear-Host
+  $progressPreference = 'Continue'
   $ScriptBlock = {
-  $arglist = "-q -nH -P " + $args[1] +" -m " +$args[2]
-  $process = $args[0] + "\Tools\wget.exe"
-
-  start-process $process -ArgumentList $arglist -Wait -NoNewWindow
+    $arglist = "-q -nH -P " + $args[1] +" -m " +$args[2]
+    $process = $args[0] + "\Tools\wget.exe"
+    start-process $process -ArgumentList $arglist -Wait -NoNewWindow
   }
-Start-Job $ScriptBlock -Name FTPDownload -ArgumentList $ScriptRoot,$Destination,$FTPHost >null
-Start-Sleep 5
-$status=Get-Job
-while ($status.State -ne "Completed"){
-$colItems = (Get-ChildItem $Destination\DeploymentShare -recurse | Measure-Object -property length -sum)
-$progress=$colItems.sum / 1MB
-$percent="{0:N2}" -f ($progress/29190*100)
-Write-Progress -Activity "Downloading 29190MB" -Status "$percent% Complete:" -PercentComplete $percent
-start-sleep 1
-$status=Get-Job
-}
+  Start-Job $ScriptBlock -Name FTPDownload -ArgumentList $ScriptRoot,$Destination,$FTPHost >null
+  Start-Sleep 5
+  $status=Get-Job
+  while ($status.State -ne "Completed"){
+    $colItems = (Get-ChildItem $Destination\DeploymentShare -recurse | Measure-Object -property length -sum)
+    $progress=$colItems.sum / 1MB
+    $percent="{0:N2}" -f ($progress/29190*100)
+    Write-Progress -Activity "Downloading 29190MB" -Status "$percent% Complete:" -PercentComplete $percent
+    start-sleep 1
+    $status=Get-Job
+  }
 $progressPreference = 'SilentlyContinue'
 get-job|Remove-Job
 }
@@ -320,8 +320,20 @@ if($Task -eq "I" -or $Task -eq "i"){
 }
 
 if($Task -eq "U" -or $Task -eq "u"){
-  $dest="$ScriptRoot\content"
-  FTPUpdate -ScriptRoot $ScriptRoot -FTPHost $FTPHost -Destination $dest
+  Clear-Host
+  $action=Read-Host "[U]pdate script source repository or download to existing [D]eployment share?"
+  $remove=Read-Host "Remove contents before download? (y/n)"
+    if($action -eq "U" -or $action -eq "u"){
+      if($remove -eq "y"){
+        Remove-Item $PSScriptRoot\content\DeploymentShare\* -Force -Recurse
+        $dest="$ScriptRoot\content"
+        FTPUpdate -ScriptRoot $ScriptRoot -FTPHost $FTPHost -Destination $dest
+      }
+      else{
+        $dest="$ScriptRoot\content"
+        FTPUpdate -ScriptRoot $ScriptRoot -FTPHost $FTPHost -Destination $dest
+      }
+    }   
 }
 
 Read-Host -Prompt "script end"
