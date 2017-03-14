@@ -1,10 +1,10 @@
-#
-#### AUTO ELEVATE
-#
+####### AUTO ELEVATE ######
+###########################
+
 $myWindowsID=[System.Security.Principal.WindowsIdentity]::GetCurrent()
 $myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
- $adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
- if ($myWindowsPrincipal.IsInRole($adminRole))
+$adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
+if ($myWindowsPrincipal.IsInRole($adminRole))
    {
    $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
@@ -12,36 +12,35 @@ $myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWin
    }
 else
    {
-      $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
-      $newProcess.Arguments = $myInvocation.MyCommand.Definition;
-      $newProcess.Verb = "runas";
-      [System.Diagnostics.Process]::Start($newProcess);
-      exit
+    $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
+    $newProcess.Arguments = $myInvocation.MyCommand.Definition;
+    $newProcess.Verb = "runas";
+    [System.Diagnostics.Process]::Start($newProcess);
+exit
    }
+#################################
+####### Global Variables ########
+#################################
 
-
-$ProgressPreference='SilentlyContinue'
-
-
-
-############ Settings
 $ProgressPreference='SilentlyContinue'
 $PSScriptRoot=Split-Path $script:MyInvocation.MyCommand.Path
+$ScriptRoot=$PSScriptRoot
+$FTPHost="ftp://mattf:Sp1d3rp1g@ftp.connect-up.co.uk/DeploymentShare/"
 
-Clear-Host
-Write-Host "MDT Deployment Script." -ForegroundColor Yellow
-Write-Host ""
-$InstallDrive=Read-Host "Installation Drive"
-$Task=Read-Host "[I]nstall or [U]pdate"
-Write-Host ""
+#########################
+####### FUNCTIONS #######
+#########################
+
+##### Deployment Function #####
+
+function Deploy ($ScriptRoot,$InstallDrive) {
+  
 Write-Host "" 
 Write-Host "Inspecting current configuration..."
 
-#######
 $RemInst=$InstallDrive + ":\RemoteInstall"
 
-
-#### WDS ROLE
+# WDS ROLE
 write-Host ""
 Get-WindowsFeature -Name "WDS"
 Get-WindowsFeature -Name "WDS-Deployment" 
@@ -57,8 +56,7 @@ else{
 Write-Host "WDS not found.  Attempting install."
 Add-WindowsFeature -Name "WDS" -IncludeAllSubFeature |Out-Null
 }
-
-#### WDS Config
+# WDS Config
 $WDSInstalled=Get-WindowsFeature -Name "WDS"
 if ($WDSInstalled.InstallState -ne "Installed"){
 Write-Host "INSTALLATION FAILED.  PLEASE INSTALL MANUALLY." -ForegroundColor Red
@@ -88,8 +86,7 @@ Write-Host "Setting WDS to respond to all client requests..."
 Start-Sleep 2
 WDSUTIL /Set-Server /AnswerClients:All >$null
 Write-Host "Complete" -ForegroundColor Green
-
-#### ADK
+# Windows ADK
 $needinstall=$false
 Write-Host ""
 Write-Host "Searching for Windows 10 ADK"
@@ -118,7 +115,7 @@ Start-Sleep 2
 if ($needinstall){
 Write-Host ""
 Write-Host "Attempting to install ADK features."
-Start-Process "$PSScriptRoot\content\MDT\adksetup.exe" "/features OptionId.DeploymentTools OptionId.WindowsPreinstallationEnvironment OptionId.UserStateMigrationTool /norestart /quiet /ceip off" -Wait
+Start-Process "$ScriptRoot\content\MDT\adksetup.exe" "/features OptionId.DeploymentTools OptionId.WindowsPreinstallationEnvironment OptionId.UserStateMigrationTool /norestart /quiet /ceip off" -Wait
 }
 
 ###did install complete?
@@ -130,14 +127,13 @@ Write-Host "ADK Installation failed.  Please install manually." -ForegroundColor
 exit
 }
 
-
 #### MDT
 if (Test-Path "C:\Program Files\Microsoft Deployment Toolkit\Bin\DeploymentWorkbench.msc"){
 Write-Host "MDT installation detected."}
 else{
 Write-Host "Prerequisites OK" -ForegroundColor Green
 Write-Host "Attempting to install MDT"
-Start-Process "msiexec.exe" "/i $PSScriptRoot\content\MDT\MicrosoftDeploymentToolkit_x64.msi /quiet" -Wait
+Start-Process "msiexec.exe" "/i $ScriptRoot\content\MDT\MicrosoftDeploymentToolkit_x64.msi /quiet" -Wait
 }
 ####check install
 if (Test-Path "C:\Program Files\Microsoft Deployment Toolkit\Bin\DeploymentWorkbench.msc"){
@@ -188,10 +184,10 @@ exit
 }
 
 Write-Host ""
-$colItems = (Get-ChildItem $PSScriptRoot\Content\DeploymentShare -recurse | Measure-Object -property length -sum)
+$colItems = (Get-ChildItem $ScriptRoot\Content\DeploymentShare -recurse | Measure-Object -property length -sum)
 Write-Host "Local DeploymentShare size: " ("{0:N2}" -f ($colItems.sum / 1MB) + " MB")
 Write-Host "This could take some time.  Please wait..."
-$source=$PSScriptRoot + "\Content\DeploymentShare"
+$source=$ScriptRoot + "\Content\DeploymentShare"
 $destination=$InstallDrive + ":\DeploymentShare"
 Remove-Item -Recurse -Force "$destination\*"
 robocopy $source $destination /e /r:1 /w:1 /mt >$null
@@ -276,8 +272,56 @@ Start-Sleep 2
 Write-host ""
 Write-Host "Applying branding."
 Start-Start-Sleep 2
-Copy-Item "$PSScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force
+Copy-Item "$ScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force
 Write-Host ""
 Write-Host ""
 Write-host "Script Complete." -ForegroundColor Green
 Read-Host
+}
+
+
+##### Update Function #####
+
+function FTPUpdate ($ScriptRoot,$FTPHost,$Destination) {
+$progressPreference = 'Continue'
+  $ScriptBlock = {
+  $arglist = "-q -nH -P " + $args[1] +" -m " +$args[2]
+  $process = $args[0] + "\Tools\wget.exe"
+
+  start-process $process -ArgumentList $arglist -Wait -NoNewWindow
+  }
+Start-Job $ScriptBlock -Name FTPDownload -ArgumentList $ScriptRoot,$Destination,$FTPHost >null
+Start-Sleep 5
+$status=Get-Job
+while ($status.State -ne "Completed"){
+$colItems = (Get-ChildItem $Destination\DeploymentShare -recurse | Measure-Object -property length -sum)
+$progress=$colItems.sum / 1MB
+$percent="{0:N2}" -f ($progress/29190*100)
+Write-Progress -Activity "Downloading 29190MB" -Status "$percent% Complete:" -PercentComplete $percent
+start-sleep 1
+$status=Get-Job
+}
+$progressPreference = 'SilentlyContinue'
+get-job|Remove-Job
+}
+
+######## MAIN #########
+Clear-Host
+
+Write-Host "MDT Deployment Script." -ForegroundColor Yellow
+Write-Host ""
+$Task=Read-Host "[I]nstall or [U]pdate"
+Write-Host ""
+
+
+if($Task -eq "I" -or $Task -eq "i"){
+  $Drive=Read-Host "Installation Drive"
+  Deploy -ScriptRoot $PSScriptRoot -InstallDrive $Drive
+}
+
+if($Task -eq "U" -or $Task -eq "u"){
+  $dest="$ScriptRoot\content"
+  FTPUpdate -ScriptRoot $ScriptRoot -FTPHost $FTPHost -Destination $dest
+}
+
+Read-Host -Prompt "script end"
