@@ -25,7 +25,6 @@ exit
 $ProgressPreference='SilentlyContinue'
 $PSScriptRoot=Split-Path $script:MyInvocation.MyCommand.Path
 $ScriptRoot=$PSScriptRoot
-$FTPHost="ftp://mattf:Sp1d3rp1g@ftp.connect-up.co.uk/DeploymentShare/"
 
 #########################
 ####### FUNCTIONS #######
@@ -282,7 +281,7 @@ Read-Host
 
 ##### Update Function #####
 
-function FTPUpdate ($ScriptRoot,$FTPHost,$Destination) {
+function FTPUpdate ($ScriptRoot,$FTPHost,$Destination,$size,$progpath) {
   Clear-Host
   $progressPreference = 'Continue'
   $ScriptBlock = {
@@ -294,10 +293,10 @@ function FTPUpdate ($ScriptRoot,$FTPHost,$Destination) {
   Start-Sleep 5
   $status=Get-Job
   while ($status.State -ne "Completed"){
-    $colItems = (Get-ChildItem $Destination\DeploymentShare -recurse | Measure-Object -property length -sum)
+    $colItems = (Get-ChildItem $Destination\$progpath -recurse | Measure-Object -property length -sum)
     $progress=$colItems.sum / 1MB
-    $percent="{0:N2}" -f ($progress/29190*100)
-    Write-Progress -Activity "Downloading 29190MB" -Status "$percent% Complete:" -PercentComplete $percent
+    $percent="{0:N2}" -f ($progress/$size*100)
+    Write-Progress -Activity "Downloading $size MB" -Status "$percent% Complete:" -PercentComplete $percent
     start-sleep 1
     $status=Get-Job
   }
@@ -322,18 +321,16 @@ if($Task -eq "I" -or $Task -eq "i"){
 if($Task -eq "U" -or $Task -eq "u"){
   Clear-Host
   $action=Read-Host "[U]pdate script source repository or download to existing [D]eployment share?"
+  $MDTDown=Read-Host "Download MDT Installation media? (y/n)"
   $remove=Read-Host "Remove contents before download? (y/n)"
     if($action -eq "U" -or $action -eq "u"){
       if($remove -eq "y"){
         Remove-Item $PSScriptRoot\content\DeploymentShare\* -Force -Recurse
-        $dest="$ScriptRoot\content"
-        FTPUpdate -ScriptRoot $ScriptRoot -FTPHost $FTPHost -Destination $dest
       }
-      else{
-        $dest="$ScriptRoot\content"
-        FTPUpdate -ScriptRoot $ScriptRoot -FTPHost $FTPHost -Destination $dest
+      FTPUpdate -ScriptRoot $ScriptRoot -FTPHost "ftp://mdtdeploy:Rhino2006@ftp.connect-up.co.uk/DeploymentShare/" -Destination "$ScriptRoot\content" -size 29190 -progpath "DeploymentShare"
+      if($MDTDown -eq "y"){
+        FTPUpdate -ScriptRoot $ScriptRoot -FTPHost "ftp://mdtdeploy:Rhino2006@ftp.connect-up.co.uk/MDT/" -Destination "$ScriptRoot\content" -size 3443 -progpath "MDT"      }
       }
-    }   
 }
 
 Read-Host -Prompt "script end"
