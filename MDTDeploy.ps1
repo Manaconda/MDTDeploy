@@ -243,7 +243,7 @@ Write-Host "Would you like to create a temporary DNS record?"
 $DNSRecord=Read-Host "This will allow you to use MDT before the boot images are prepared (y/n)"
 if ($DNSRecord -eq "y"){
 Write-Host "Creating an A record for WDS01.  Please remove once boot images have been regenerated."
-$IPAddress=Get-NetIPAddress �AddressFamily IPv4 |Where-Object {$_.IPAddress -notlike "127*"}
+$IPAddress=Get-NetIPAddress -AddressFamily IPv4 |Where-Object {$_.IPAddress -notlike "127*"}
 Add-DnsServerResourceRecordA -Name "WDS01" -ZoneName $domain -AllowUpdateAny -IPv4Address $IPAddress.IPAddress -TimeToLive 01:00:00
 Start-Sleep 2
 Write-Host "DNS record created. Importing boot image to WDS." -ForegroundColor Green
@@ -270,7 +270,7 @@ Write-host "Boot image imported to WDS"
 Start-Sleep 2
 Write-host ""
 Write-Host "Applying branding."
-Start-Start-Sleep 2
+Start-Sleep 2
 Copy-Item "$ScriptRoot\Content\Files\Background.bmp" "c:\Program Files\Microsoft Deployment Toolkit\Samples\background.bmp" -Force
 Write-Host ""
 Write-Host ""
