@@ -311,9 +311,9 @@ Clear-Host
 
 Write-Host "MDT Deployment Script." -ForegroundColor Yellow
 Write-Host ""
-$Task=Read-Host "[I]nstall or [U]pdate"
+#$Task=Read-Host "[I]nstall or [U]pdate"
 Write-Host ""
-
+$task="I"
 
 if($Task -eq "I" -or $Task -eq "i"){
   $Drive=Read-Host "Installation Drive"
