@@ -217,8 +217,8 @@ Start-Sleep 2
 (Get-Content $destination\control\CustomSettings.ini) | ForEach-Object { $_ -replace "WDS01", $env:computername } | Set-Content $destination\control\CustomSettings.Ini
 (Get-Content $destination\control\BootStrap.ini) | ForEach-Object { $_ -replace "WDS01", $env:computername } | Set-Content $destination\control\BootStrap.Ini
 (Get-Content $destination\control\BootStrap.ini) | ForEach-Object { $_ -replace "Cuss.local", $domain } | Set-Content $destination\control\BootStrap.Ini
-(Get-Content $destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.bat) | ForEach-Object { $_ -replace "WDS01", $env.$env:COMPUTERNAME } | Set-Content $destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.bat
-(Get-Content $destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.xml) | ForEach-Object { $_ -replace "WDS01", $env.$env:COMPUTERNAME } | Set-Content $destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.xml
+(Get-Content $destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.bat) | ForEach-Object { $_ -replace "WDS01", $env.$env:COMPUTERNAME } | Set-Content "$destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.bat"
+(Get-Content $destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.xml) | ForEach-Object { $_ -replace "WDS01", $env.$env:COMPUTERNAME } | Set-Content "$destination\Applications\Microsoft Office 2016 Pro Plus O365\Install.xml"
 
 $RSATInstalled = Get-WindowsFeature RSAT
 
